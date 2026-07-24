@@ -20,6 +20,31 @@ Critically, the entire pipeline was **validated on synthetic data with a known g
 
 ---
 
+## Dataset
+
+This project uses the Starbucks App Customer Reward Program dataset, which contains customer demographic information, promotional offer metadata, and event-level transaction logs.
+
+**Source:**
+
+* [Starbucks App Customer Reward Program Dataset (Kaggle)](https://www.kaggle.com/datasets/blacktile/starbucks-app-customer-reward-program-data?utm_source=chatgpt.com)
+
+### Raw Files
+
+| File              | Description                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| `profile.json`    | Customer demographic information (age, income, gender, membership date)                  |
+| `portfolio.json`  | Offer metadata (offer type, reward, difficulty, duration, channels)                      |
+| `transcript.json` | Event log containing offer receipt, offer view, offer completion, and transaction events |
+
+The original dataset is stored in:
+
+```text
+data/raw/
+├── portfolio.json
+├── profile.json
+└── transcript.json
+```
+
 ## Project Structure
 
 ```
