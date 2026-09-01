@@ -36,6 +36,17 @@ from engine.targeting import (
     get_targeting_summary
 )
 
+from engine.recommendation import (
+    generate_recommendation,
+    compare_policies
+)
+
+from components.metrics import (
+    display_recommendation_metrics,
+    display_cost_metrics,
+    display_recommendation_message
+)
+
 from components.tables import (
     display_targeting_table,
     create_download_button
@@ -530,6 +541,140 @@ if not target_list.empty:
         filename="causal_uplift_target_customer_list.csv"
     )
 
+# ============================================================
+# Phase 9.9 — Automated Recommendation
+# ============================================================
+
+st.divider()
+
+st.subheader("Automated Policy Recommendation")
+
+st.markdown(
+    """
+    The recommendation engine evaluates feasible targeting
+    policies and identifies the strategy that captures the
+    highest predicted uplift within the selected budget.
+    """
+)
+
+
+# ============================================================
+# Recommendation Budget
+# ============================================================
+
+recommendation_budget = st.number_input(
+    "Recommendation Budget ($)",
+    min_value=0.0,
+    max_value=100000.0,
+    value=15000.0,
+    step=500.0
+)
+
+
+# ============================================================
+# Generate Recommendation
+# ============================================================
+
+recommendation = generate_recommendation(
+    scenarios,
+    budget=recommendation_budget
+)
+
+
+# ============================================================
+# Recommendation Message
+# ============================================================
+
+display_recommendation_message(
+    recommendation
+)
+
+
+# ============================================================
+# Recommendation Metrics
+# ============================================================
+
+if recommendation["status"] == "RECOMMENDED":
+
+    display_recommendation_metrics(
+        recommendation
+    )
+
+    st.markdown(
+        "### Cost Impact"
+    )
+
+    display_cost_metrics(
+        recommendation
+    )
+
+
+# ============================================================
+# Feasible Policy Comparison
+# ============================================================
+
+st.markdown(
+    "### Feasible Policy Comparison"
+)
+
+feasible_policies = compare_policies(
+    scenarios,
+    budget=recommendation_budget
+)
+
+if feasible_policies.empty:
+
+    st.warning(
+        "No policies are available within this budget."
+    )
+
+else:
+
+    display_columns = [
+        "pct_targeted",
+        "n_targeted",
+        "captured_uplift",
+        "pct_uplift_captured",
+        "estimated_cost",
+        "cost_saved_vs_current",
+        "uplift_per_dollar"
+    ]
+
+    available_columns = [
+        column
+        for column in display_columns
+        if column in feasible_policies.columns
+    ]
+
+    display_df = feasible_policies[
+        available_columns
+    ].copy()
+
+    display_df["pct_targeted"] = (
+        display_df["pct_targeted"] * 100
+    )
+
+    display_df["pct_uplift_captured"] = (
+        display_df["pct_uplift_captured"] * 100
+    )
+
+    display_df = display_df.rename(
+        columns={
+            "pct_targeted": "Targeting %",
+            "n_targeted": "Customers",
+            "captured_uplift": "Captured Uplift",
+            "pct_uplift_captured": "Uplift Captured %",
+            "estimated_cost": "Estimated Cost",
+            "cost_saved_vs_current": "Cost Saved",
+            "uplift_per_dollar": "Uplift / Dollar"
+        }
+    )
+
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True
+    )
 
 # ============================================================
 # Interpretation
