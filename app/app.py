@@ -30,21 +30,11 @@ from engine.policy import (
 )
 
 from engine.budget import calculate_budget_summary
+from engine.recommendation import optimize_policy
 
 from engine.targeting import (
     prepare_target_list,
     get_targeting_summary
-)
-
-from engine.recommendation import (
-    generate_recommendation,
-    compare_policies
-)
-
-from components.metrics import (
-    display_recommendation_metrics,
-    display_cost_metrics,
-    display_recommendation_message
 )
 
 from components.tables import (
@@ -542,165 +532,313 @@ if not target_list.empty:
     )
 
 # ============================================================
-# Phase 9.9 — Automated Recommendation
+# Granular Policy Optimization
 # ============================================================
 
 st.divider()
 
-st.subheader("Automated Policy Recommendation")
+st.subheader("Optimal Policy Optimization")
 
 st.markdown(
     """
-    The recommendation engine evaluates feasible targeting
-    policies and identifies the strategy that captures the
-    highest predicted uplift within the selected budget.
+    Find the highest-uplift customer-targeting policy that
+    remains within a specified campaign budget.
     """
 )
 
 
 # ============================================================
-# Recommendation Budget
+# Optimization Budget
 # ============================================================
 
-recommendation_budget = st.number_input(
-    "Recommendation Budget ($)",
+optimization_budget = st.number_input(
+    "Optimization Budget ($)",
     min_value=0.0,
     max_value=100000.0,
     value=15000.0,
-    step=500.0
+    step=500.0,
+    key="optimization_budget"
 )
 
 
 # ============================================================
-# Generate Recommendation
+# Run Granular Optimization
 # ============================================================
 
-recommendation = generate_recommendation(
-    scenarios,
-    budget=recommendation_budget
+optimization = optimize_policy(
+    df=df,
+    budget=optimization_budget,
+    cost_per_customer=avg_reward,
+    baseline_fraction=current_fraction,
+    step=0.01
 )
 
 
 # ============================================================
-# Recommendation Message
+# Check Optimization Result
 # ============================================================
 
-display_recommendation_message(
-    recommendation
-)
-
-
-# ============================================================
-# Recommendation Metrics
-# ============================================================
-
-if recommendation["status"] == "RECOMMENDED":
-
-    display_recommendation_metrics(
-        recommendation
-    )
-
-    st.markdown(
-        "### Cost Impact"
-    )
-
-    display_cost_metrics(
-        recommendation
-    )
-
-
-# ============================================================
-# Feasible Policy Comparison
-# ============================================================
-
-st.markdown(
-    "### Feasible Policy Comparison"
-)
-
-feasible_policies = compare_policies(
-    scenarios,
-    budget=recommendation_budget
-)
-
-if feasible_policies.empty:
+if optimization["status"] == "NO_FEASIBLE_POLICY":
 
     st.warning(
-        "No policies are available within this budget."
+        optimization["message"]
     )
 
 else:
 
-    display_columns = [
-        "pct_targeted",
-        "n_targeted",
-        "captured_uplift",
-        "pct_uplift_captured",
-        "estimated_cost",
-        "cost_saved_vs_current",
-        "uplift_per_dollar"
-    ]
+    optimal = optimization["optimal_policy"]
 
-    available_columns = [
-        column
-        for column in display_columns
-        if column in feasible_policies.columns
-    ]
 
-    display_df = feasible_policies[
-        available_columns
+    # ========================================================
+    # Optimization Metrics
+    # ========================================================
+
+    st.markdown("### Recommended Policy")
+
+
+    opt_col1, opt_col2, opt_col3, opt_col4 = st.columns(4)
+
+
+    with opt_col1:
+
+        st.metric(
+            "Optimal Targeting",
+            f"{optimal['pct_targeted']:.0%}"
+        )
+
+
+    with opt_col2:
+
+        st.metric(
+            "Customers Targeted",
+            f"{int(optimal['n_targeted']):,}"
+        )
+
+
+    with opt_col3:
+
+        st.metric(
+            "Captured Uplift",
+            f"{optimal['captured_uplift']:,.2f}"
+        )
+
+
+    with opt_col4:
+
+        st.metric(
+            "Uplift Captured",
+            f"{optimal['pct_uplift_captured']:.2%}"
+        )
+
+
+    # ========================================================
+    # Financial Metrics
+    # ========================================================
+
+    st.markdown("### Financial Impact")
+
+
+    finance_col1, finance_col2, finance_col3 = st.columns(3)
+
+
+    with finance_col1:
+
+        st.metric(
+            "Estimated Campaign Cost",
+            f"${optimal['estimated_cost']:,.2f}"
+        )
+
+
+    with finance_col2:
+
+        st.metric(
+            "Cost Saved vs Current",
+            f"${optimal['cost_saved_vs_current']:,.2f}"
+        )
+
+
+    with finance_col3:
+
+        st.metric(
+            "Uplift per Dollar",
+            f"{optimal['uplift_per_dollar']:.4f}"
+        )
+
+
+    # ========================================================
+    # Budget Utilization
+    # ========================================================
+
+    budget_used_percentage = (
+        optimal["estimated_cost"] /
+        optimization_budget * 100
+        if optimization_budget > 0
+        else 0
+    )
+
+
+    remaining_budget = (
+        optimization_budget -
+        optimal["estimated_cost"]
+    )
+
+
+    st.markdown("### Budget Utilization")
+
+
+    budget_col1, budget_col2 = st.columns(2)
+
+
+    with budget_col1:
+
+        st.metric(
+            "Budget Used",
+            f"{budget_used_percentage:.2f}%"
+        )
+
+
+    with budget_col2:
+
+        st.metric(
+            "Remaining Budget",
+            f"${remaining_budget:,.2f}"
+        )
+
+
+    # ========================================================
+    # Recommendation Message
+    # ========================================================
+
+    st.info(
+        f"""
+        **Recommended strategy:** Target
+        **{optimal['pct_targeted']:.0%}** of customers.
+
+        This corresponds to approximately
+        **{int(optimal['n_targeted']):,} customers** and is
+        expected to capture **{optimal['pct_uplift_captured']:.2%}**
+        of the theoretical positive-CATE uplift.
+
+        The estimated campaign cost is
+        **${optimal['estimated_cost']:,.2f}**, leaving
+        **${remaining_budget:,.2f}** of the available budget.
+        """
+    )
+
+
+    # ========================================================
+    # Granular Policy Table
+    # ========================================================
+
+    st.markdown(
+        "### Granular Policy Search"
+    )
+
+    st.caption(
+        "The optimizer evaluates targeting policies at "
+        "1% intervals and identifies the highest-uplift "
+        "policy that satisfies the budget constraint."
+    )
+
+
+    granular_policies = (
+        optimization["policies"]
+        .copy()
+    )
+
+
+    # --------------------------------------------------------
+    # Mark feasible policies
+    # --------------------------------------------------------
+
+    granular_policies["Budget Feasible"] = (
+        granular_policies["estimated_cost"]
+        <= optimization_budget
+    )
+
+
+    # --------------------------------------------------------
+    # Display table
+    # --------------------------------------------------------
+
+    granular_display = granular_policies[
+        [
+            "pct_targeted",
+            "n_targeted",
+            "captured_uplift",
+            "pct_uplift_captured",
+            "estimated_cost",
+            "cost_saved_vs_current",
+            "uplift_per_dollar",
+            "Budget Feasible"
+        ]
     ].copy()
 
-    display_df["pct_targeted"] = (
-        display_df["pct_targeted"] * 100
+
+    granular_display["pct_targeted"] = (
+        granular_display["pct_targeted"] * 100
     )
 
-    display_df["pct_uplift_captured"] = (
-        display_df["pct_uplift_captured"] * 100
+
+    granular_display["pct_uplift_captured"] = (
+        granular_display["pct_uplift_captured"] * 100
     )
 
-    display_df = display_df.rename(
-        columns={
-            "pct_targeted": "Targeting %",
-            "n_targeted": "Customers",
-            "captured_uplift": "Captured Uplift",
-            "pct_uplift_captured": "Uplift Captured %",
-            "estimated_cost": "Estimated Cost",
-            "cost_saved_vs_current": "Cost Saved",
-            "uplift_per_dollar": "Uplift / Dollar"
-        }
+
+    granular_display = (
+        granular_display
+        .rename(
+            columns={
+                "pct_targeted":
+                    "Targeting %",
+
+                "n_targeted":
+                    "Customers",
+
+                "captured_uplift":
+                    "Captured Uplift",
+
+                "pct_uplift_captured":
+                    "Uplift Captured %",
+
+                "estimated_cost":
+                    "Estimated Cost",
+
+                "cost_saved_vs_current":
+                    "Cost Saved",
+
+                "uplift_per_dollar":
+                    "Uplift / Dollar",
+
+                "Budget Feasible":
+                    "Budget Feasible"
+            }
+        )
     )
+
 
     st.dataframe(
-        display_df,
-        use_container_width=True,
+        granular_display,
+        width="stretch",
         hide_index=True
     )
 
-# ============================================================
-# Interpretation
-# ============================================================
 
-st.divider()
+    # ========================================================
+    # Download Granular Policies
+    # ========================================================
 
-st.subheader("Policy Interpretation")
+    csv_data = granular_policies.to_csv(
+        index=False
+    )
 
-st.write(
-    f"""
-    By targeting **{target_percentage}%** of customers,
-    the simulator selects the customers with the highest
-    predicted CATE values.
 
-    This corresponds to **{result['n_targeted']:,} customers**,
-    capturing **{result['pct_uplift_captured']:.2%}** of the
-    theoretical positive-CATE uplift.
-
-    The estimated targeting cost is
-    **${result['estimated_cost']:,.2f}**, representing
-    **{result['pct_cost_saved']:.2%}** cost savings compared
-    with the current targeting policy.
-    """
-)
-
+    st.download_button(
+        label="Download Granular Policy Results",
+        data=csv_data,
+        file_name="granular_policy_optimization.csv",
+        mime="text/csv"
+    )
 
 # ============================================================
 # Policy Trade-off Analysis
@@ -717,6 +855,9 @@ st.markdown(
     """
 )
 
+# ============================================================
+# Prepare Chart Data
+# ============================================================
 
 # ============================================================
 # Chart 1 — Uplift
@@ -729,7 +870,7 @@ fig_uplift = create_uplift_chart(
 
 st.plotly_chart(
     fig_uplift,
-    use_container_width=True
+    width="stretch"
 )
 
 
@@ -744,7 +885,7 @@ fig_savings = create_cost_savings_chart(
 
 st.plotly_chart(
     fig_savings,
-    use_container_width=True
+    width="stretch"
 )
 
 
@@ -759,7 +900,7 @@ fig_cost = create_cost_chart(
 
 st.plotly_chart(
     fig_cost,
-    use_container_width=True
+    width="stretch"
 )
 
 # ============================================================
