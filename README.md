@@ -188,3 +188,388 @@ Real bugs found and fixed during this project, documented here because the debug
 ## Tech Stack
 
 Python · `pandas` · `numpy` · `econml` (LinearDML, CausalForestDML) · `scikit-learn` · `scipy` · `matplotlib`
+
+---
+
+## Interactive Policy Simulator Dashboard
+
+To make the causal analysis actionable, the project was extended with an **interactive Streamlit dashboard** that allows users to explore different customer-targeting strategies without modifying the underlying causal analysis pipeline.
+
+The dashboard converts the predicted individual treatment effects (`predicted_cate`) into an interactive **What-If Policy Simulator**, allowing decision-makers to evaluate the trade-off between incremental uplift, campaign cost, customer coverage, and budget constraints.
+
+### Dashboard Capabilities
+
+The interactive dashboard provides the following capabilities:
+
+* **Current Policy Overview**
+
+  * Total number of customers
+  * Number of customers currently targeted
+  * Current targeting percentage
+
+* **What-If Targeting**
+
+  * Interactive targeting percentage slider from 0% to 100%
+  * Simulates alternative targeting policies
+  * Calculates the expected captured uplift
+  * Estimates campaign cost
+  * Calculates cost savings relative to the current policy
+
+* **Budget-Constrained Simulation**
+
+  * Allows the user to specify a maximum campaign budget
+  * Automatically determines how many customers can be targeted within that budget
+  * Calculates expected uplift and remaining budget
+  * Compares the simulated strategy against the current policy
+
+* **Customer-Level Targeting**
+
+  * Ranks customers according to their predicted CATE
+  * Identifies the highest-priority customers
+  * Displays the selected customer targeting list
+  * Provides a downloadable CSV file for operational use
+
+* **Policy Trade-off Analysis**
+
+  * Targeting percentage vs. uplift captured
+  * Targeting percentage vs. cost savings
+  * Targeting percentage vs. estimated campaign cost
+  * Interactive policy selection and visualization
+
+* **Granular Policy Optimization**
+
+  * Evaluates policies at **1% targeting intervals**
+  * Searches across 101 possible targeting levels from 0% to 100%
+  * Filters policies according to a specified campaign budget
+  * Selects the feasible policy with the highest predicted uplift
+  * Reports budget utilization, remaining budget, cost savings, and uplift efficiency
+
+---
+
+## Policy Optimization
+
+The project was extended beyond fixed policy scenarios to support **granular policy optimization**.
+
+Instead of manually selecting a targeting percentage, the optimizer evaluates targeting policies at **1% intervals**:
+
+```text
+0%, 1%, 2%, 3%, ..., 98%, 99%, 100%
+```
+
+For every policy, the system calculates:
+
+* Number of customers targeted
+* Captured uplift
+* Percentage of theoretical positive-CATE uplift captured
+* Estimated campaign cost
+* Cost saved compared with the current policy
+* Uplift per dollar
+
+The optimization objective is:
+
+> **Maximize predicted incremental uplift while satisfying the available campaign budget.**
+
+This transforms the project from a causal-effect estimation system into a **decision-support framework for budget-constrained customer targeting**.
+
+### Example Optimization Result
+
+Using a campaign budget of **$15,000**, the granular optimizer identified:
+
+| Metric                        |       Result |
+| ----------------------------- | -----------: |
+| Optimal Targeting             |      **33%** |
+| Customers Targeted            |    **4,892** |
+| Captured Uplift               | **9,901.13** |
+| Uplift Captured               |   **95.48%** |
+| Estimated Cost                |  **$14,676** |
+| Cost Saved vs. Current Policy |  **$24,450** |
+
+The optimizer therefore identifies a policy that remains within the specified budget while maximizing the predicted incremental effect.
+
+---
+
+## Policy Search and Decision Support
+
+The dashboard now supports two complementary approaches to policy selection:
+
+### 1. What-If Policy Simulation
+
+The user directly chooses the percentage of customers to target.
+
+```text
+Targeting Percentage
+        ↓
+Rank customers by predicted CATE
+        ↓
+Select top-ranked customers
+        ↓
+Estimate captured uplift
+        ↓
+Estimate campaign cost
+        ↓
+Calculate cost savings
+```
+
+This allows users to answer questions such as:
+
+> "What happens if we target only 20%, 40%, or 60% of customers?"
+
+### 2. Budget-Constrained Optimization
+
+The user specifies a maximum campaign budget.
+
+```text
+Campaign Budget
+        ↓
+Evaluate 101 targeting policies
+        ↓
+Filter policies exceeding budget
+        ↓
+Compare predicted uplift
+        ↓
+Select highest-uplift feasible policy
+        ↓
+Recommend targeting level
+```
+
+This answers the more operational question:
+
+> "Given our available budget, who should we target and how many customers should receive the offer?"
+
+---
+
+## Customer Targeting Engine
+
+A customer-level targeting module was added to operationalize the individual treatment-effect estimates.
+
+Customers are ranked using:
+
+```text
+predicted_cate
+```
+
+Higher predicted CATE indicates a higher estimated incremental treatment effect and therefore a higher targeting priority.
+
+The targeting engine provides:
+
+* Ranked customer lists
+* Number of selected customers
+* Average predicted CATE
+* Total predicted CATE
+* Exportable targeting lists
+
+The dashboard can export the selected customers as:
+
+```text
+causal_uplift_target_customer_list.csv
+```
+
+This creates a direct connection between the causal modeling stage and a practical marketing targeting workflow.
+
+---
+
+## Interactive Policy Trade-off Analysis
+
+The dashboard includes interactive visualizations showing how policy performance changes with customer coverage.
+
+The policy search evaluates targeting levels from 0% to 100%, allowing the user to observe:
+
+### Uplift Trade-off
+
+How much of the theoretical positive-CATE uplift is captured as more customers are targeted.
+
+### Cost-Savings Trade-off
+
+How cost savings change as the targeting population increases.
+
+### Campaign-Cost Trade-off
+
+How estimated campaign expenditure grows with the number of customers targeted.
+
+These visualizations make the fundamental policy trade-off explicit:
+
+```text
+More Customers Targeted
+          ↓
+Higher Campaign Cost
+          ↓
+Additional Uplift Eventually Diminishes
+```
+
+This helps identify the region where additional targeting provides limited incremental value.
+
+---
+
+## Dashboard Architecture
+
+The interactive dashboard was intentionally separated from the original causal-analysis pipeline so that the existing analysis remains reusable and unchanged.
+
+The dashboard is organized as:
+
+```text
+app/
+├── app.py
+│
+├── data/
+│   └── loader.py
+│
+├── engine/
+│   ├── policy.py
+│   ├── targeting.py
+│   ├── budget.py
+│   └── recommendation.py
+│
+├── components/
+│   ├── charts.py
+│   └── tables.py
+│
+├── assests/
+│   └── logo.png
+│
+├── config.py
+├── test_budget.py
+├── test_optimization.py
+├── test_policy.py
+├── test_recommendation.py
+├── test_scenarios.py
+├── test_targeting.py
+└── test_validation.py
+```
+
+### Module Responsibilities
+
+| Module | Responsibility |
+|---|---|
+| `app.py` | Main Streamlit dashboard and user interface |
+| `data/loader.py` | Loads and prepares customer and portfolio data |
+| `engine/policy.py` | Policy simulation and policy scenario generation |
+| `engine/targeting.py` | Customer ranking, target-list generation, and targeting summaries |
+| `engine/budget.py` | Budget allocation, customer count calculation, and campaign-cost calculations |
+| `engine/recommendation.py` | Granular policy generation, budget filtering, policy evaluation, and optimal policy recommendation |
+| `components/charts.py` | Interactive policy trade-off visualizations for uplift, cost savings, and campaign cost |
+| `components/tables.py` | Customer targeting tables and CSV download functionality |
+| `config.py` | Dashboard and application configuration |
+| `test_budget.py` | Tests budget allocation, targeting limits, campaign cost, and remaining budget calculations |
+| `test_optimization.py` | Validates granular 1% policy optimization and budget-constrained optimal policy selection |
+| `test_policy.py` | Validates policy simulation calculations and targeting scenarios |
+| `test_recommendation.py` | Tests policy recommendation, feasibility checks, and optimal-policy selection |
+| `test_scenarios.py` | Validates generation and correctness of policy scenarios |
+| `test_targeting.py` | Validates customer ranking, target-list generation, and targeting summaries |
+| `test_validation.py` | Performs validation checks for the dashboard policy simulation and supporting calculations |
+
+---
+
+## Granular Optimization Validation
+
+The granular optimization module was independently tested to verify that the policy-search mechanism behaves as expected.
+
+### Validation Results
+
+```text
+Number of policies generated : 101
+Minimum targeting level      : 0%
+Maximum targeting level      : 100%
+```
+
+The optimizer successfully evaluates policies at **1% intervals**.
+
+A 40% targeting policy was also independently verified:
+
+```text
+Customers targeted : 5,930
+Captured uplift    : 10,113.41
+Estimated cost     : $17,790.00
+```
+
+The budget optimization test using a **$15,000 budget** produced:
+
+```text
+Optimal targeting  : 33%
+Customers targeted : 4,892
+Captured uplift    : 9,901.13
+Uplift captured     : 95.48%
+Estimated cost     : $14,676.00
+Cost saved         : $24,450.00
+```
+
+All optimization validation checks passed, including the 1% policy-granularity check.
+
+---
+
+## Running the Interactive Dashboard
+
+In addition to the original pipeline and notebooks, the project can now be explored through the Streamlit dashboard.
+
+Install the additional dashboard dependencies:
+
+```bash
+pip install streamlit plotly pillow
+```
+
+Then launch the application from the project root:
+
+```bash
+streamlit run app/app.py
+```
+
+The dashboard will provide an interactive interface for:
+
+```text
+Current Policy
+      ↓
+What-If Targeting
+      ↓
+Budget-Constrained Simulation
+      ↓
+Customer Targeting
+      ↓
+Policy Trade-off Analysis
+      ↓
+Granular Policy Optimization
+      ↓
+Recommended Policy
+```
+
+The original causal-analysis scripts and notebooks remain available for detailed methodological analysis, while the Streamlit application provides an interactive decision-support layer on top of the resulting CATE estimates.
+
+---
+
+## End-to-End Project Workflow
+
+With the addition of the interactive policy simulator and granular optimizer, the complete project workflow can now be viewed as:
+
+```text
+Starbucks Raw Data
+        ↓
+Data Preparation
+        ↓
+Synthetic Validation
+        ↓
+Naive Baseline
+        ↓
+LinearDML
+        ↓
+CausalForestDML
+        ↓
+Individual CATE Estimation
+        ↓
+CATE Reliability & Heterogeneity Analysis
+        ↓
+Qini / Ranking Evaluation
+        ↓
+Policy Simulation
+        ↓
+Customer Ranking
+        ↓
+Budget-Constrained Targeting
+        ↓
+Granular 1% Policy Search
+        ↓
+Optimal Policy Recommendation
+        ↓
+Interactive Streamlit Dashboard
+```
+
+The resulting system therefore goes beyond estimating whether a marketing campaign works. It connects **causal effect estimation → heterogeneous treatment effects → customer ranking → policy simulation → budget optimization → actionable targeting** within a single analytical workflow.
+
+---
