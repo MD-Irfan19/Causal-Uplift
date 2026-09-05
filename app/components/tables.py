@@ -49,7 +49,7 @@ def create_download_button(
     ).encode("utf-8")
 
     st.download_button(
-        label="⬇️ Download Target Customer List",
+        label="Download Target Customer List",
         data=csv_data,
         file_name=filename,
         mime="text/csv"

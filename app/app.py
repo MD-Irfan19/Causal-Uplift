@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+from PIL import Image
 import streamlit as st
 
 
@@ -52,9 +53,11 @@ from components.charts import (
 # Page Configuration
 # ============================================================
 
+icon_image = Image.open("app/assests/logo.png")
+
 st.set_page_config(
     page_title="Causal Uplift — What-If Simulator",
-    # page_icon="📊",
+    page_icon=icon_image,
     layout="wide"
 )
 
